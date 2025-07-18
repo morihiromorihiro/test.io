@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+[⚠️ Suspicious Content] <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
@@ -15,12 +15,16 @@
             margin: 0;
             font-family: 'Inter', sans-serif; /* フォントをInterに設定 */
             overflow: hidden; /* スクロールバーが出ないようにする */
+            background-color: #f8f8f8; /* 全体の背景色を少し明るく */
         }
 
         /* マップコンテナのスタイル */
         #map {
-            height: calc(100vh - 150px); /* ボタンとイベントボタンの高さ分を引く */
-            width: 100vw;  /* ビューポートの幅全体を使用 */
+            height: calc(100vh - 80px); /* イベントボタンの高さ分を引く */
+            width: 100vw; /* ビューポートの幅全体を使用 */
+            border-radius: 0.75rem; /* rounded-lg */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
+            overflow: hidden; /* 角丸が適用されるように */
         }
         /* ロード中のメッセージのスタイル */
         .loading-overlay {
@@ -31,12 +35,28 @@
             height: 100%;
             background-color: rgba(0, 0, 0, 0.7);
             display: flex;
+            flex-direction: column; /* テキストとスピナーを縦に並べる */
             justify-content: center;
             align-items: center;
             color: white;
             font-size: 1.5rem;
             z-index: 9999;
+            text-align: center;
         }
+        .loading-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         /* メッセージボックスのスタイル */
         .message-box {
             position: fixed;
@@ -44,63 +64,44 @@
             left: 50%;
             transform: translate(-50%, -50%);
             background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            padding: 24px; /* paddingを増やす */
+            border-radius: 12px; /* 角丸を大きく */
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25); /* 影を強調 */
             z-index: 10000;
             text-align: center;
             display: none; /* 初期状態では非表示 */
+            max-width: 90%; /* モバイルでの表示を考慮 */
+            animation: fadeInScale 0.3s ease-out forwards; /* アニメーションを追加 */
+        }
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+            to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+        .message-box p {
+            font-size: 1.1rem;
+            color: #333;
+            margin-bottom: 20px;
+            line-height: 1.6;
         }
         .message-box button {
-            background-color: #4F46E5;
+            background-color: #4F46E5; /* インディゴ */
             color: white;
-            padding: 8px 16px;
-            border-radius: 6px;
+            padding: 10px 20px; /* パディングを増やす */
+            border-radius: 8px; /* 角丸を大きく */
             margin-top: 15px;
             cursor: pointer;
             border: none;
-        }
-        /* ナビゲーションボタンのコンテナスタイル */
-        .navigation-buttons-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 16px;
-            background-color: #ffffff;
-            box-shadow: 0 -4px 8px rgba(0, 0, 0, 0.1);
-            position: relative;
-            z-index: 100;
-            height: 70px; /* ボタンコンテナの高さ */
-        }
-        /* ナビゲーションボタンのスタイル */
-        .nav-button {
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 1rem;
             font-weight: bold;
-            cursor: pointer;
-            border: none;
+            transition: background-color 0.3s ease, transform 0.2s ease;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            transition: background-color 0.3s ease, opacity 0.3s ease;
-            margin: 0 10px;
         }
-        .nav-button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
+        .message-box button:hover {
+            background-color: #4338CA; /* 少し濃いインディゴ */
+            transform: translateY(-1px);
         }
-        .nav-button.start {
-            background-color: #10B981; /* エメラルドグリーン */
-            color: white;
-        }
-        .nav-button.start:hover:not(:disabled) {
-            background-color: #059669; /* 少し濃いエメラルドグリーン */
-        }
-        .nav-button.stop {
-            background-color: #EF4444; /* 赤 */
-            color: white;
-        }
-        .nav-button.stop:hover:not(:disabled) {
-            background-color: #DC2626; /* 少し濃い赤 */
+        .message-box button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
         /* イベントボタンのコンテナスタイル */
@@ -114,6 +115,11 @@
             position: relative;
             z-index: 100;
             height: 80px; /* イベントボタンコンテナの高さ */
+            animation: slideUp 0.5s ease-out forwards; /* アニメーションを追加 */
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
         /* イベントボタンのスタイル */
         .event-button {
@@ -190,6 +196,20 @@
             height: 100%;
             width: 100%;
         }
+
+        /* スコア表示のスタイル */
+        #scoreDisplay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            color: #333;
+            z-index: 101; /* マップより手前に */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body class="font-sans antialiased">
@@ -201,6 +221,9 @@
 
     <!-- ゲーム画面 (最初は非表示) -->
     <div id="gameScreen" class="hidden">
+        <!-- スコア表示 -->
+        <div id="scoreDisplay">スコア: <span id="currentScore">0</span></div>
+
         <!-- マップが表示されるdiv要素 -->
         <div id="map" class="flex-grow rounded-lg shadow-lg"></div>
 
@@ -211,16 +234,13 @@
             </button>
         </div>
 
-        <!-- ナビゲーションボタンのコンテナ -->
-        <div class="navigation-buttons-container">
-            <button id="startButton" class="nav-button start" onclick="startGeolocationTracking()">ナビ開始</button>
-            <button id="stopButton" class="nav-button stop" onclick="stopGeolocationTracking()" disabled>ナビ停止</button>
-        </div>
+        <!-- ナビゲーションボタンのコンテナは削除されました -->
     </div>
 
     <!-- ロード中のオーバーレイ -->
     <div id="loadingOverlay" class="loading-overlay hidden">
-        現在地を取得中...
+        <div class="loading-spinner"></div>
+        <span id="loadingMessage">現在地を取得中...</span>
     </div>
 
     <!-- メッセージボックス -->
@@ -234,13 +254,6 @@
         console.log("Script execution started.");
 
         // Google Maps APIキーは空の文字列に設定します。Canvas環境が自動的に提供します。
-        // 「for development purposes only」というメッセージが表示される場合、
-        // これはAPIキーが不足しているか、無効である場合に表示されます。
-        // Canvas環境では自動的にキーが提供されるため、この問題が続く場合は
-        // 環境側の一時的な問題である可能性があります。
-        // もしCanvas環境外で実行している場合は、ご自身のGoogle Cloudプロジェクトで
-        // 有効なAPIキーを設定し、Google Maps JavaScript APIが有効になっていることを確認してください。
-        // このメッセージは、コードの問題ではなく、APIキーの認証または読み込みの問題に起因します。
         const GOOGLE_MAPS_API_KEY = "";
 
         let map; // Googleマップオブジェクト
@@ -248,6 +261,7 @@
         let watchId = null; // watchPositionのIDを保存するための変数
         let lastPosition = null; // 前回の位置情報を保存するための変数（移動方向計算用）
         let activeEventLocation = null; // 現在検出範囲内にあるイベント地点を保持する変数
+        let score = 0; // プレイヤーのスコア
 
         // デフォルトの位置情報 (東京駅) - 位置情報取得失敗時や初期表示に使用
         const DEFAULT_LAT = 35.681236;
@@ -256,38 +270,61 @@
         // イベント地点の定義
         const eventLocations = [
             {
-                id: 'shinjukuGyoen',
-                name: 'ryuiti',
+                id: 'ryuiti',
+                name: '竜一の隠れ家',
                 lat: 35.91508261392471,
                 lng: 140.18757421836057,
                 radius: 150, // 検出範囲（メートル）
-                message: 'テストメッセージ！！',
-                buttonVisible: false, // ボタンが表示されているか
-                marker: null // Google Mapsマーカーオブジェクトを格納
+                triggered: false, // イベントがすでにクリアされたか
+                marker: null, // Google Mapsマーカーオブジェクトを格納
+                circle: null, // Google Maps Circleオブジェクトを格納
+                lastTriggeredTime: 0 // 最後にトリガーされたタイムスタンプ
             },
             {
-                id: 'tokyoTower',
-                name: 'ryuugasaki',
-                lat: 35.939439520005806, 
+                id: 'ryuugasaki',
+                name: '龍ヶ崎の泉',
+                lat: 35.939439520005806,
                 lng: 140.17520637144244,
                 radius: 80,
-                message: 'テストメッセージ！！',
-                buttonVisible: false,
-                marker: null
+                triggered: false,
+                marker: null,
+                circle: null,
+                lastTriggeredTime: 0
+            },
+            {
+                id: 'park',
+                name: '秘密の公園',
+                lat: 35.925000,
+                lng: 140.180000,
+                radius: 100,
+                triggered: false,
+                marker: null,
+                circle: null,
+                lastTriggeredTime: 0
             }
         ];
+
+        const EVENT_COOLDOWN_TIME = 60 * 1000; // イベント再活性化までのクールダウン時間 (ミリ秒, 例: 1分)
 
         // DOM要素の取得
         const titleScreen = document.getElementById('titleScreen');
         const gameScreen = document.getElementById('gameScreen');
         const startGameButton = document.getElementById('startGameButton');
         const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingMessage = document.getElementById('loadingMessage');
         const messageBox = document.getElementById('messageBox');
         const messageText = document.getElementById('messageText');
-        const startButton = document.getElementById('startButton');
-        const stopButton = document.getElementById('stopButton');
+        // startButtonとstopButtonは削除されたため、ここでは取得しません
         const eventButtonContainer = document.getElementById('eventButtonContainer');
         const eventButtonText = document.getElementById('eventButtonText');
+        const currentScoreDisplay = document.getElementById('currentScore');
+
+        // スコアを更新して表示する関数
+        function updateScore(points) {
+            score += points;
+            currentScoreDisplay.innerText = score;
+            console.log(`スコア更新: ${points}ポイント追加。現在のスコア: ${score}`);
+        }
 
         // メッセージボックスを表示する関数
         function showMessageBox(message) {
@@ -318,7 +355,7 @@
 
             const y = Math.sin(dLon) * Math.cos(lat2Rad);
             const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
-                      Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+                        Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
             let bearing = toDeg(Math.atan2(y, x));
 
             // 0-360度の範囲に正規化
@@ -407,14 +444,16 @@
                             fillOpacity: 0.8, // 不透明度
                             strokeWeight: 0, // 枠線の太さ
                             rotation: 0 // 初期回転角度（動的に更新される）
-                        }
+                        },
+                        zIndex: 2 // イベントマーカーより手前に表示
                     });
                     console.log("Map and marker initialized.");
 
-                    // イベント地点のマーカーを地図上に配置
+                    // イベント地点のマーカーと円を地図上に配置
                     eventLocations.forEach(location => {
+                        const eventLatLng = { lat: location.lat, lng: location.lng };
                         location.marker = new google.maps.Marker({
-                            position: { lat: location.lat, lng: location.lng },
+                            position: eventLatLng,
                             map: map,
                             title: location.name,
                             icon: { // 例: 青い円のアイコン
@@ -425,6 +464,19 @@
                                 strokeWeight: 0
                             },
                             zIndex: 1 // ユーザーマーカーより下にする
+                        });
+
+                        // 検出範囲を示す円を追加
+                        location.circle = new google.maps.Circle({
+                            strokeColor: '#0000FF', // 青色
+                            strokeOpacity: 0.8,
+                            strokeWeight: 2,
+                            fillColor: '#0000FF', // 青色
+                            fillOpacity: 0.15,
+                            map: map,
+                            center: eventLatLng,
+                            radius: location.radius, // イベントの検出範囲
+                            zIndex: 0 // 最背面
                         });
                     });
                 }
@@ -442,8 +494,8 @@
         function startGeolocationTracking() {
             console.log("startGeolocationTracking called.");
             loadingOverlay.classList.remove('hidden'); // hiddenクラスを削除して表示
-            startButton.disabled = true; // 開始ボタンを無効化
-            stopButton.disabled = false; // 停止ボタンを有効化
+            loadingMessage.innerText = "現在地を取得中...";
+            // startButtonとstopButtonは削除されたため、ここでは無効化/有効化しません
 
             if (navigator.geolocation) {
                 // watchPositionを使用して位置情報を継続的に監視
@@ -484,29 +536,24 @@
                             // google.maps.geometry.spherical.computeDistanceBetween を使用して距離を計算
                             const distance = google.maps.geometry.spherical.computeDistanceBetween(userLatLng, eventLatLng);
 
-                            if (distance <= location.radius) {
-                                // 検出範囲内に入った場合
-                                if (!location.buttonVisible) {
-                                    // 初めて範囲内に入った場合、ボタンを表示する準備
+                            // クールダウンが終了しているかチェック
+                            const canTrigger = (Date.now() - location.lastTriggeredTime) > EVENT_COOLDOWN_TIME;
+
+                            if (distance <= location.radius && !location.triggered && canTrigger) {
+                                // 検出範囲内に入り、まだトリガーされておらず、クールダウンも終了している場合
+                                if (!activeEventLocation || activeEventLocation.id !== location.id) {
+                                    // 初めてこのイベントの範囲内に入った、または別のイベントがアクティブだった場合
                                     activeEventLocation = location; // このイベントをアクティブに設定
                                     eventButtonText.innerText = `${location.name}を発見！`;
                                     eventButtonContainer.classList.remove('hidden'); // hiddenクラスを削除して表示
-                                    location.buttonVisible = true;
                                     console.log(`イベント地点「${location.name}」の範囲内に入りました。`);
                                 }
                                 foundActiveEvent = true; // 少なくとも一つのイベントがアクティブ
-                            } else {
-                                // 検出範囲外に出た場合
-                                if (location.buttonVisible) {
-                                    // 範囲外に出た場合、ボタンを非表示にする
-                                    if (activeEventLocation && activeEventLocation.id === location.id) {
-                                        // 現在アクティブなイベントがこの地点の場合のみ非表示
-                                        eventButtonContainer.classList.add('hidden'); // hiddenクラスを追加して非表示
-                                        activeEventLocation = null;
-                                    }
-                                    location.buttonVisible = false;
-                                    console.log(`イベント地点「${location.name}」の範囲外に出ました。`);
-                                }
+                            } else if (activeEventLocation && activeEventLocation.id === location.id && (distance > location.radius || location.triggered || !canTrigger)) {
+                                // 検出範囲外に出た、またはイベントがトリガー済み/クールダウン中の場合
+                                eventButtonContainer.classList.add('hidden'); // hiddenクラスを追加して非表示
+                                activeEventLocation = null;
+                                console.log(`イベント地点「${location.name}」の範囲外に出たか、トリガー済み/クールダウン中です。`);
                             }
                         });
 
@@ -516,14 +563,12 @@
                             activeEventLocation = null;
                         }
 
-
                         loadingOverlay.classList.add('hidden'); // hiddenクラスを追加して非表示
                     },
                     (error) => {
                         console.error("Geolocation watch error:", error);
                         loadingOverlay.classList.add('hidden'); // hiddenクラスを追加して非表示
-                        startButton.disabled = false; // 開始ボタンを有効化
-                        stopButton.disabled = true; // 停止ボタンを無効化
+                        // startButtonとstopButtonは削除されたため、ここでは無効化/有効化しません
                         let errorMessage = "現在地を取得できませんでした。";
                         switch (error.code) {
                             case error.PERMISSION_DENIED:
@@ -555,8 +600,7 @@
             } else {
                 console.log("Geolocation not supported.");
                 loadingOverlay.classList.add('hidden'); // hiddenクラスを追加して非表示
-                startButton.disabled = false; // 開始ボタンを有効化
-                stopButton.disabled = true; // 停止ボタンを無効化
+                // startButtonとstopButtonは削除されたため、ここでは無効化/有効化しません
                 const errorMessage = "お使いのブラウザはGeolocationをサポートしていません。";
                 console.error(errorMessage);
                 showMessageBox(errorMessage); // エラーメッセージを表示
@@ -567,26 +611,124 @@
             }
         }
 
-        // イベントボタンがクリックされた時の処理
-        function handleEventButtonClick() {
-            if (activeEventLocation) {
-                console.log(`イベントボタンがクリックされました: ${activeEventLocation.name}`);
-                showMessageBox(activeEventLocation.message); // イベントメッセージを表示
-                // ボタンを非表示にする処理は削除されました
-                // activeEventLocation = null; // アクティブなイベントをリセットする処理は削除されました
+        /**
+         * Gemini APIを呼び出してイベントコンテンツを生成する関数
+         * @param {string} eventName - イベント地点の名前
+         * @returns {Promise<string>} 生成されたイベントメッセージ
+         */
+        async function generateEventContent(eventName) {
+            loadingMessage.innerText = `${eventName}のイベント情報を生成中...`;
+            loadingOverlay.classList.remove('hidden');
+
+            let chatHistory = [];
+            const prompt = `あなたは位置情報ゲームのゲームマスターです。プレイヤーは「${eventName}」という場所に着きました。この場所に関連する短く、ワクワクするような、テーマ性のあるイベントメッセージ、または簡単なチャレンジを生成してください。100文字以内で、プレイヤーにインタラクションを促す内容にしてください。`;
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+
+            const payload = { contents: chatHistory };
+            const apiKey = ""; // Canvas環境が自動的に提供
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    return text;
+                } else {
+                    console.error("LLMからの応答が予期しない構造です:", result);
+                    return `「${eventName}」で何かを発見しました！しかし、メッセージは読み取れません...。`;
+                }
+            } catch (error) {
+                console.error("LLM呼び出し中にエラーが発生しました:", error);
+                return `「${eventName}」で何かを発見しました！しかし、通信エラーでメッセージが取得できませんでした。`;
+            } finally {
+                loadingOverlay.classList.add('hidden');
             }
         }
 
-        // ナビゲーションを停止する関数
+        // イベントボタンがクリックされた時の処理
+        async function handleEventButtonClick() {
+            if (!activeEventLocation) {
+                showMessageBox("現在、アクティブなイベントはありません。");
+                return;
+            }
+
+            // イベントがクールダウン中の場合は処理しない
+            if (activeEventLocation.triggered && (Date.now() - activeEventLocation.lastTriggeredTime) < EVENT_COOLDOWN_TIME) {
+                const remainingTime = Math.ceil((EVENT_COOLDOWN_TIME - (Date.now() - activeEventLocation.lastTriggeredTime)) / 1000);
+                showMessageBox(`${activeEventLocation.name}は現在クールダウン中です。あと${remainingTime}秒待ってください。`);
+                return;
+            }
+
+            console.log(`イベントボタンがクリックされました: ${activeEventLocation.name}`);
+
+            // LLMからイベントコンテンツを生成
+            const eventMessage = await generateEventContent(activeEventLocation.name);
+            showMessageBox(eventMessage); // 生成されたイベントメッセージを表示
+
+            // イベントをクリア済みとしてマークし、スコアを加算
+            activeEventLocation.triggered = true;
+            activeEventLocation.lastTriggeredTime = Date.now(); // 最終トリガー時間を記録
+            updateScore(100); // 例として100ポイント加算
+
+            // イベントマーカーの色を変更してクリア済みを示す
+            if (activeEventLocation.marker) {
+                activeEventLocation.marker.setIcon({
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 8,
+                    fillColor: '#60A5FA', // クリア済みのイベントは薄い青色
+                    fillOpacity: 0.6,
+                    strokeWeight: 0
+                });
+            }
+            // イベントサークルの色も変更
+            if (activeEventLocation.circle) {
+                activeEventLocation.circle.setOptions({
+                    strokeColor: '#60A5FA',
+                    fillColor: '#60A5FA'
+                });
+            }
+
+            // イベントボタンを一時的に非表示にする
+            eventButtonContainer.classList.add('hidden');
+
+            // クールダウン後にイベントを再活性化するタイマーを設定
+            setTimeout(() => {
+                activeEventLocation.triggered = false; // イベントを未クリア状態に戻す
+                if (activeEventLocation.marker) {
+                    activeEventLocation.marker.setIcon({
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 8,
+                        fillColor: '#0000FF', // 元の青色に戻す
+                        fillOpacity: 0.6,
+                        strokeWeight: 0
+                    });
+                }
+                if (activeEventLocation.circle) {
+                    activeEventLocation.circle.setOptions({
+                        strokeColor: '#0000FF',
+                        fillColor: '#0000FF'
+                    });
+                }
+                console.log(`イベント地点「${activeEventLocation.name}」が再活性化されました。`);
+            }, EVENT_COOLDOWN_TIME);
+        }
+
+        // ナビゲーションを停止する関数 (UIからは呼び出されないが、内部的に保持)
         function stopGeolocationTracking() {
             console.log("stopGeolocationTracking called.");
             if (watchId !== null) {
                 navigator.geolocation.clearWatch(watchId); // 位置情報の監視を停止
                 watchId = null; // IDをリセット
                 lastPosition = null; // 前回の位置情報をリセット
-                showMessageBox("ナビゲーションを停止しました。");
-                startButton.disabled = false; // 開始ボタンを有効化
-                stopButton.disabled = true; // 停止ボタンを無効化
+                // showMessageBox("ナビゲーションを停止しました。"); // ボタンがないためメッセージは表示しない
                 eventButtonContainer.classList.add('hidden'); // hiddenクラスを追加して非表示
                 activeEventLocation = null; // アクティブなイベントをリセット
 
@@ -631,12 +773,9 @@
         function onGoogleMapsLoaded() {
             console.log("Google Maps API loaded successfully.");
             // マップの初期化はstartGame()から呼び出される
-            // ここではGeolocationの追跡を自動的に開始せず、ユーザーのボタンクリックを待つ
-            // まずはデフォルトの位置でマップを初期化して表示
+            // ここではGeolocationの追跡を自動的に開始します
             initMap(DEFAULT_LAT, DEFAULT_LNG);
-            // ボタンの初期状態を設定
-            startButton.disabled = false;
-            stopButton.disabled = true;
+            startGeolocationTracking(); // マップロード後に即座に追跡を開始
         }
 
         // ゲームを開始する関数
@@ -645,8 +784,8 @@
             titleScreen.classList.add('hidden'); // タイトル画面を非表示
             gameScreen.classList.remove('hidden'); // ゲーム画面を表示
             loadGoogleMapsScript(); // Google Maps APIの読み込みを開始
-            // Geolocationの追跡は、Google Mapsがロードされ、initMapが呼ばれた後、
-            // ユーザーが「ナビ開始」ボタンを押したときに開始される
+            updateScore(0); // スコアを初期化
+            // Geolocationの追跡はonGoogleMapsLoadedから自動的に開始される
         }
 
         // ウィンドウがロードされたら、まずタイトル画面を表示し、ゲームスタートボタンにイベントリスナーを追加
