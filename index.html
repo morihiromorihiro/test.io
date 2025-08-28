@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>位置情報ゲーム</title>
+    <!-- Tailwind CSSを読み込みます -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 全体のレイアウト */
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Inter', sans-serif; /* フォントをInterに設定 */
+            overflow: hidden; /* スクロールバーが出ないようにする */
+            background-color: #f8f8f8; /* 全体の背景色を少し明るく */
+        }
+
+        /* マップコンテナのスタイル */
+        #map {
+            height: calc(100vh - 80px); /* イベントボタンコンテナの高さ分を引く */
+            width: 100vw; /* ビューポートの幅全体を使用 */
+            border-radius: 0.75rem; /* rounded-lg */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
+            overflow: hidden; /* 角丸が適用されるように */
+        }
+        /* ロード中のメッセージのスタイル */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column; /* テキストとスピナーを縦に並べる */
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 1.5rem;
+            z-index: 9999;
+            text-align: center;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* メッセージボックスのスタイル */
+        .message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #fff;
+            padding: 24px; /* paddingを増やす */
+            border-radius: 12px; /* 角丸を大きく */
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25); /* 影を強調 */
+            z-index: 10000;
+            text-align: center;
+            display: none; /* 初期状態では非表示 */
+            max-width: 90%; /* モバイルでの表示を考慮 */
+            animation: fadeInScale 0.3s ease-out forwards; /* アニメーションを追加 */
+        }
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+            to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+        .message-box p {
+            font-size: 1.1rem;
+            color: #333;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .message-box button {
+            background-color: #4F46E5; /* インディゴ */
+            color: white;
+            padding: 10px 20px; /* パディングを増やす */
+            border-radius: 8px; /* 角丸を大きく */
+            margin-top: 15px;
+            cursor: pointer;
+            border: none;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .message-box button:hover {
+            background-color: #4338CA; /* 少し濃いインディゴ */
+            transform: translateY(-1px);
+        }
+        .message-box button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        /* イベントボタンのコンテナスタイル */
+        .event-button-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+            background-color: #f0f0f0; /* 少し明るい背景 */
+            box-shadow: 0 -4px 8px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 100;
+            height: 80px; /* イベントボタンコンテナの高さ */
+            animation: slideUp 0.5s ease-out forwards; /* アニメーションを追加 */
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        /* イベントボタンのスタイル */
+        .event-button {
+            background-color: #3B82F6; /* 青 */
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        .event-button:hover {
+            background-color: #2563EB; /* 少し濃い青 */
+            transform: translateY(-2px);
+        }
+        .event-button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .hidden {
+            display: none !important;
+        }
+
+        /* タイトル画面のスタイル */
+        #titleScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom right, #6EE7B7, #34D399); /* グラデーション背景 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10001; /* 最前面に表示 */
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        #titleScreen h1 {
+            font-size: 3.5rem;
+            font-weight: extra-bold;
+            margin-bottom: 30px;
+            letter-spacing: 2px;
+        }
+        #titleScreen .start-game-button {
+            background-color: #FBBF24; /* アンバー */
+            color: #333;
+            padding: 18px 40px;
+            border-radius: 12px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        #titleScreen .start-game-button:hover {
+            background-color: #F59E0B; /* 少し濃いアンバー */
+            transform: translateY(-4px);
+        }
+        #titleScreen .start-game-button:active {
+            transform: translateY(0);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        /* ゲーム画面のコンテナ */
+        #gameScreen {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased">
+    <!-- ロード中のオーバーレイ -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-spinner"></div>
+        <span id="loadingMessage">現在地を取得中...</span>
+    </div>
+
+    <!-- メッセージボックス -->
+    <div id="messageBox" class="message-box hidden">
+        <p id="messageText"></p>
+        <button onclick="hideMessageBox()">閉じる</button>
+    </div>
+
+    <!-- ゲーム画面 -->
+    <div id="gameScreen">
+        <!-- マップが表示されるdiv要素 -->
+        <div id="map" class="flex-grow rounded-lg shadow-lg"></div>
+
+        <!-- イベントボタンのコンテナ -->
+        <div id="eventButtonContainer" class="event-button-container hidden">
+            <button id="eventActionButton" class="event-button" onclick="handleEventButtonClick()">
+                <span id="eventButtonText">イベントを発見！</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // スクリプトの実行が開始されたことをログに出力
+        console.log("Script execution started.");
+
+        // Google Maps APIキーは空の文字列に設定します。Canvas環境が自動的に提供します。
+        const GOOGLE_MAPS_API_KEY = "";
+
+        let map; // Googleマップオブジェクト
+        let marker; // マーカーオブジェクト
+        let watchId = null; // watchPositionのIDを保存するための変数
+        let lastPosition = null; // 前回の位置情報を保存するための変数（移動方向計算用）
+        let activeEventLocation = null; // 現在検出範囲内にあるイベント地点を保持する変数
+
+        // デフォルトの位置情報 (東京駅) - 位置情報取得失敗時や初期表示に使用
+        const DEFAULT_LAT = 35.681236;
+        const DEFAULT_LNG = 139.767125;
+
+        // イベント地点の定義
+        const eventLocations = [
+            {
+                id: 'ryuiti',
+                name: '竜一の隠れ家',
+                lat: 35.91508261392471,
+                lng: 140.18757421836057,
+                radius: 150, // 検出範囲（メートル）
+                marker: null, // Google Mapsマーカーオブジェクトを格納
+                circle: null, // Google Maps Circleオブジェクトを格納
+                lastMessageTriggeredTime: 0 // メッセージのクールダウン用 (一時的)
+            },
+            {
+                id: 'ryuugasaki',
+                name: '龍ヶ崎の泉',
+                lat: 35.939439520005806,
+                lng: 140.17520637144244,
+                radius: 80,
+                marker: null,
+                circle: null,
+                lastMessageTriggeredTime: 0
+            },
+            {
+                id: 'park',
+                name: '秘密の公園',
+                lat: 35.925000,
+                lng: 140.180000,
+                radius: 100,
+                marker: null,
+                circle: null,
+                lastMessageTriggeredTime: 0
+            },
+            {
+                id: 'shrine',
+                name: '古びた神社',
+                lat: 35.910000,
+                lng: 140.195000,
+                radius: 120,
+                marker: null,
+                circle: null,
+                lastMessageTriggeredTime: 0
+            },
+            {
+                id: 'sakura_square', // ユニークなID
+                name: '桜の広場', // 表示名
+                lat: 35.920000, // 緯度
+                lng: 140.185000, // 経度
+                radius: 100, // 検出範囲（メートル）
+                marker: null,
+                circle: null,
+                lastMessageTriggeredTime: 0
+            }
+        ];
+
+        // メッセージの再表示を許可するためのクールダウン時間（例: 5秒）
+        const EVENT_COOLDOWN_TIME = 5 * 1000; // メッセージ再表示までのクールダウン時間 (ミリ秒)
+
+        // DOM要素の取得
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const eventButtonContainer = document.getElementById('eventButtonContainer');
+        const eventButtonText = document.getElementById('eventButtonText');
+
+        // メッセージボックスを表示する関数
+        function showMessageBox(message) {
+            messageText.innerText = message;
+            messageBox.classList.remove('hidden');
+        }
+
+        // メッセージボックスを非表示にする関数
+        function hideMessageBox() {
+            messageBox.classList.add('hidden');
+        }
+
+        /**
+         * 2点間の方位（方角、bearing）を計算する関数
+         * @param {number} lat1 - 1点目の緯度
+         * @param {number} lon1 - 1点目の経度
+         * @param {number} lat2 - 2点目の緯度
+         * @param {number} lon2 - 2点目の経度
+         * @returns {number} 0-360度の範囲の方位（北が0度、東が90度）
+         */
+        function calculateBearing(lat1, lon1, lat2, lon2) {
+            const toRad = (deg) => deg * Math.PI / 180;
+            const toDeg = (rad) => rad * 180 / Math.PI;
+
+            const dLon = toRad(lon2 - lon1);
+            const lat1Rad = toRad(lat1);
+            const lat2Rad = toRad(lat2);
+
+            const y = Math.sin(dLon) * Math.cos(lat2Rad);
+            const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+                        Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+            let bearing = toDeg(Math.atan2(y, x));
+
+            // 0-360度の範囲に正規化
+            return (bearing + 360) % 360;
+        }
+
+        /**
+         * Googleマップを初期化または更新する関数
+         * @param {number} latitude - 地図の中心とする緯度
+         * @param {number} longitude - 地図の中心とする経度
+         */
+        function initMap(latitude, longitude) {
+            console.log("initMap called with coordinates:", latitude, longitude);
+            const currentLocation = { lat: latitude, lng: longitude };
+
+            try {
+                if (typeof google === 'undefined' || typeof google.maps === 'undefined' || typeof google.maps.Map === 'undefined') {
+                    const errorMessage = "Google Mapsオブジェクトが利用できません。APIキーの問題または読み込みエラーの可能性があります。";
+                    console.error(errorMessage);
+                    showMessageBox(errorMessage + " マップを表示できません。");
+                    loadingOverlay.classList.add('hidden');
+                    return;
+                }
+
+                if (map) {
+                    map.setCenter(currentLocation);
+                    marker.setPosition(currentLocation);
+                    console.log("Map and marker updated to new location.");
+                } else {
+                    map = new google.maps.Map(document.getElementById("map"), {
+                        center: currentLocation,
+                        zoom: 18,
+                        disableDefaultUI: true,
+                        zoomControl: true,
+                        streetViewControl: false,
+                        mapTypeControl: false,
+                        fullscreenControl: false,
+                        tilt: 45,
+                        styles: [
+                            { featureType: "landscape", elementType: "geometry", stylers: [{ color: "#f5f5f5" }] },
+                            { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+                            { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9e0f2" }] },
+                            { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+                            { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] },
+                            { featureType: "administrative", elementType: "labels", stylers: [{ visibility: "off" }] }
+                        ]
+                    });
+
+                    marker = new google.maps.Marker({
+                        position: currentLocation,
+                        map: map,
+                        title: "現在地",
+                        icon: {
+                            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                            scale: 6,
+                            fillColor: '#FF0000',
+                            fillOpacity: 0.8,
+                            strokeWeight: 0,
+                            rotation: 0
+                        },
+                        zIndex: 2
+                    });
+                    console.log("Map and marker initialized.");
+
+                    eventLocations.forEach(location => {
+                        const eventLatLng = { lat: location.lat, lng: location.lng };
+                        location.marker = new google.maps.Marker({
+                            position: eventLatLng,
+                            map: map,
+                            title: location.name,
+                            icon: {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 8,
+                                fillColor: '#0000FF',
+                                fillOpacity: 0.6,
+                                strokeWeight: 0
+                            },
+                            zIndex: 1
+                        });
+
+                        location.circle = new google.maps.Circle({
+                            strokeColor: '#0000FF',
+                            strokeOpacity: 0.8,
+                            strokeWeight: 2,
+                            fillColor: '#0000FF',
+                            fillOpacity: 0.15,
+                            map: map,
+                            center: eventLatLng,
+                            radius: location.radius,
+                            zIndex: 0
+                        });
+                    });
+                }
+
+            } catch (e) {
+                const errorMessage = "マップの初期化中にエラーが発生しました: " + e.message;
+                console.error(errorMessage, e);
+                showMessageBox(errorMessage + " マップを表示できません。");
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        }
+
+        // Geolocation APIで現在地を継続的に取得する関数
+        function startGeolocationTracking() {
+            console.log("startGeolocationTracking called.");
+            loadingOverlay.classList.remove('hidden');
+            loadingMessage.innerText = "現在地を取得中...";
+
+            if (navigator.geolocation) {
+                watchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        console.log("Geolocation watch successful.");
+                        const latitude = position.coords.latitude;
+                        const longitude = position.coords.longitude;
+                        const newLocation = { lat: latitude, lng: longitude };
+                        const userLatLng = new google.maps.LatLng(latitude, longitude);
+
+                        initMap(latitude, longitude);
+
+                        if (lastPosition && (newLocation.lat !== lastPosition.lat || newLocation.lng !== lastPosition.lng)) {
+                            const bearing = calculateBearing(
+                                lastPosition.lat, lastPosition.lng,
+                                newLocation.lat, newLocation.lng
+                            );
+                            map.setHeading(bearing);
+                            marker.setIcon({
+                                path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                                scale: 6,
+                                fillColor: '#FF0000',
+                                fillOpacity: 0.8,
+                                strokeWeight: 0,
+                                rotation: bearing
+                            });
+                        }
+                        lastPosition = newLocation;
+
+                        let foundActiveEvent = false;
+                        eventLocations.forEach(location => {
+                            const eventLatLng = new google.maps.LatLng(location.lat, location.lng);
+                            const distance = google.maps.geometry.spherical.computeDistanceBetween(userLatLng, eventLatLng);
+
+                            const canTriggerMessage = (Date.now() - location.lastMessageTriggeredTime) > EVENT_COOLDOWN_TIME;
+                            const isWithinRange = distance <= location.radius;
+
+                            if (isWithinRange) {
+                                if (canTriggerMessage) {
+                                    // 範囲に入ったばかり、またはクールダウンが終了している場合
+                                    // メッセージを自動で表示
+                                    handleEventAutoDisplay(location);
+                                }
+                                // どのイベントがアクティブかを常に追跡
+                                activeEventLocation = location;
+                                eventButtonText.innerText = `${location.name}のメッセージを見る`;
+                                eventButtonContainer.classList.remove('hidden');
+                                foundActiveEvent = true;
+                            }
+                        });
+
+                        // どのイベントもアクティブでない場合、イベントボタンを非表示にする
+                        if (!foundActiveEvent) {
+                            eventButtonContainer.classList.add('hidden');
+                            activeEventLocation = null;
+                        }
+
+                        loadingOverlay.classList.add('hidden');
+                    },
+                    (error) => {
+                        console.error("Geolocation watch error:", error);
+                        loadingOverlay.classList.add('hidden');
+                        let errorMessage = "現在地を取得できませんでした。";
+                        switch (error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage = "位置情報の利用が許可されていません。ブラウザの設定を確認してください。";
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage = "位置情報が利用できません。";
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage = "位置情報の取得がタイムアウトしました。電波の良い場所へ移動するか、インターネット接続を確認してください。";
+                                break;
+                            case error.UNKNOWN_ERROR:
+                                errorMessage = "不明なエラーが発生しました。";
+                                break;
+                        }
+                        console.error("Geolocationエラー:", errorMessage);
+                        showMessageBox(errorMessage);
+                        if (!map) {
+                            initMap(DEFAULT_LAT, DEFAULT_LNG);
+                        }
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 20000,
+                        maximumAge: 0
+                    }
+                );
+            } else {
+                console.log("Geolocation not supported.");
+                loadingOverlay.classList.add('hidden');
+                const errorMessage = "お使いのブラウザはGeolocationをサポートしていません。";
+                console.error(errorMessage);
+                showMessageBox(errorMessage);
+                if (!map) {
+                    initMap(DEFAULT_LAT, DEFAULT_LNG);
+                }
+            }
+        }
+
+        /**
+         * Gemini APIを呼び出してイベントコンテンツを生成する関数
+         * @param {string} eventName - イベント地点の名前
+         * @returns {Promise<string>} 生成されたイベントメッセージ
+         */
+        async function generateEventContent(eventName) {
+            loadingMessage.innerText = `${eventName}のイベント情報を生成中...`;
+            loadingOverlay.classList.remove('hidden');
+
+            let chatHistory = [];
+            const prompt = `あなたは位置情報ゲームのゲームマスターです。プレイヤーは「${eventName}」という場所に着きました。この場所に関連する短く、ワクワクするような、テーマ性のあるイベントメッセージ、または簡単なチャレンジを生成してください。100文字以内で、プレイヤーにインタラクションを促す内容にしてください。`;
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+
+            const payload = { contents: chatHistory };
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    return text;
+                } else {
+                    console.error("LLMからの応答が予期しない構造です:", result);
+                    return `「${eventName}」で何かを発見しました！しかし、メッセージは読み取れません...。`;
+                }
+            } catch (error) {
+                console.error("LLM呼び出し中にエラーが発生しました:", error);
+                return `「${eventName}」で何かを発見しました！しかし、通信エラーでメッセージが取得できませんでした。`;
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        }
+
+        // イベントが検出された場合に自動でメッセージを表示する関数
+        async function handleEventAutoDisplay(location) {
+            // クールダウンが終了しているかチェック
+            const canTrigger = (Date.now() - location.lastMessageTriggeredTime) > EVENT_COOLDOWN_TIME;
+            if (!canTrigger) {
+                return; // クールダウン中の場合は何もしない
+            }
+
+            console.log(`目的地「${location.name}」に到着しました！自動でメッセージを表示します。`);
+
+            const eventMessage = await generateEventContent(location.name);
+            showMessageBox(eventMessage);
+            location.lastMessageTriggeredTime = Date.now();
+        }
+
+        // イベントボタンがクリックされた時の処理（再表示機能）
+        async function handleEventButtonClick() {
+            if (!activeEventLocation) {
+                showMessageBox("現在、アクティブな場所はありません。");
+                return;
+            }
+
+            // ボタンクリック時はクールダウンを無視してメッセージを再表示
+            const eventMessage = await generateEventContent(activeEventLocation.name);
+            showMessageBox(eventMessage);
+            // ボタンからの表示ではクールダウンを更新しない
+        }
+
+        // ナビゲーションを停止する関数 (UIからは呼び出されないが、内部的に保持)
+        function stopGeolocationTracking() {
+            console.log("stopGeolocationTracking called.");
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+                lastPosition = null;
+                eventButtonContainer.classList.add('hidden');
+                activeEventLocation = null;
+
+                if (map) {
+                    map.setHeading(0);
+                    marker.setIcon({
+                        path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                        scale: 6,
+                        fillColor: '#FF0000',
+                        fillOpacity: 0.8,
+                        strokeWeight: 0,
+                        rotation: 0
+                    });
+                }
+            }
+        }
+
+        // Google Maps APIスクリプトを動的に読み込む関数
+        function loadGoogleMapsScript() {
+            console.log("loadGoogleMapsScript called.");
+            const script = document.createElement("script");
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=onGoogleMapsLoaded&libraries=geometry`;
+            script.async = true;
+            script.defer = true;
+            document.head.appendChild(script);
+            script.onerror = () => {
+                console.error("Google Maps API script failed to load.");
+                loadingOverlay.classList.add('hidden');
+                const errorMessage = "Google Maps APIの読み込みに失敗しました。インターネット接続を確認してください。";
+                console.error(errorMessage);
+                showMessageBox(errorMessage);
+                if (!map) {
+                    initMap(DEFAULT_LAT, DEFAULT_LNG);
+                }
+            };
+        }
+
+        // Google Maps APIがロードされた後に実行されるコールバック関数
+        function onGoogleMapsLoaded() {
+            console.log("Google Maps API loaded successfully.");
+            initMap(DEFAULT_LAT, DEFAULT_LNG);
+            startGeolocationTracking();
+        }
+
+        // ゲームを初期化し、位置情報追跡を開始
+        window.onload = () => {
+            console.log("Window loaded. Initializing game.");
+            loadGoogleMapsScript();
+        };
+    </script>
+</body>
+</html>
