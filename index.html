@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>位置情報ゲーム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            background-color: #f8f8f8;
+        }
+        #map {
+            height: calc(100vh - 80px);
+            width: 100vw;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1),
+                        0 4px 6px -2px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+        .loading-overlay {
+            position: fixed; top:0; left:0;
+            width:100%; height:100%;
+            background-color:rgba(0,0,0,0.7);
+            display:flex; flex-direction:column;
+            justify-content:center; align-items:center;
+            color:white; font-size:1.5rem;
+            z-index:9999; text-align:center;
+        }
+        .loading-spinner {
+            border:4px solid rgba(255,255,255,0.3);
+            border-top:4px solid #fff;
+            border-radius:50%;
+            width:40px; height:40px;
+            animation:spin 1s linear infinite;
+            margin-bottom:15px;
+        }
+        @keyframes spin {0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+
+        .message-box {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+        .message-content {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.25);
+            text-align: center;
+            max-width: 90%;
+            animation: fadeInScale 0.3s ease-out forwards;
+            position: relative;
+        }
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.9);}
+            to   { opacity: 1; transform: scale(1);}
+        }
+        .message-content h2 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1a202c;
+            margin-bottom: 1rem;
+        }
+        .message-content p {
+            font-size:1rem;
+            color:#333;
+            margin-bottom:1rem;
+            line-height:1.6;
+            max-height: 50vh;
+            overflow-y: auto;
+        }
+        .message-content button {
+            background-color:#4F46E5;
+            color:white;
+            padding:10px 20px;
+            border-radius:8px;
+            border:none;
+            font-weight:bold;
+            cursor:pointer;
+            transition: background-color 0.3s ease;
+        }
+        .message-content button:hover {
+            background-color: #3B82F6;
+        }
+
+        .event-button-container {
+            display:flex; justify-content:center; align-items:center;
+            padding:16px; background-color:#f0f0f0;
+            box-shadow:0 -4px 8px rgba(0,0,0,0.1);
+            height:80px;
+        }
+        .event-button {
+            background-color:#3B82F6; color:white;
+            padding:15px 30px; border-radius:10px;
+            font-size:1.2rem; font-weight:bold;
+            border:none; cursor:pointer;
+        }
+        .hidden { display:none !important; }
+    </style>
+</head>
+<body>
+    <!-- ロード中のオーバーレイ -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-spinner"></div>
+        <span id="loadingMessage">現在地を取得中...</span>
+    </div>
+
+    <!-- メッセージボックス（全画面表示） -->
+    <div id="messageBox" class="message-box hidden">
+        <div class="message-content">
+            <h2 id="messageTitle"></h2>
+            <p id="messageText"></p>
+            <button onclick="hideMessageBox()">閉じる</button>
+        </div>
+    </div>
+
+    <!-- ゲーム画面 -->
+    <div id="gameScreen">
+        <div id="map"></div>
+        <div id="eventButtonContainer" class="event-button-container hidden">
+            <button id="eventActionButton" class="event-button" onclick="handleEventButtonClick()">
+                <span id="eventButtonText">イベントを発見！</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const GOOGLE_MAPS_API_KEY = ""; // ここにAPIキーを設定
+        const DEFAULT_LAT = 35.681236, DEFAULT_LNG = 139.767125;
+
+        // メッセージとタイトルをまとめて管理するオブジェクト
+        const gameMessages = {
+            tokyo_station: {
+                title: '東京駅の秘密',
+                text: '東京駅を発見しました！不思議なメモが落ちています…。「東の森の奥深くに、失われた宝が眠る。」と書かれている。'
+            },
+            asakusa_sensoji: {
+                title: '浅草寺の静寂',
+                text: '浅草寺に到着しました。荘厳な雰囲気の中で、この世界の真実が映し出されているように見えます。'
+            },
+            shinjuku_gyoen: {
+                title: '新宿御苑の手帳',
+                text: '新宿御苑のベンチの下に、古びた手帳を見つけました。次の目的地へのヒントが隠されているようです。'
+            },
+            geolocation_error: {
+                title: '位置情報エラー',
+                text: '位置情報を取得できません。お使いのブラウザやデバイスの設定を確認してください。'
+            },
+            browser_unsupported: {
+                title: '非対応ブラウザ',
+                text: 'お使いのブラウザはGeolocationをサポートしていません。'
+            },
+            ryuiti: {
+                title:'竜ケ崎一校',
+                text: '竜一の隠れ家を発見しました！不思議なメモが落ちています…。「東の森の奥深くに、失われた宝が眠る。」と書かれている。'
+            },
+            ryugasaki_syotengai: {
+                title:'龍ヶ崎商店街',
+                text: 'コロッケやプリンなどが売っている。おいしい'
+            }
+
+        };
+
+        let map, marker, watchId=null, lastPosition=null, activeEventLocation=null;
+
+        const eventLocations = [
+            { id:'tokyo_station', name:'東京駅', lat:35.681236, lng:139.767125, radius:150, messageId: 'tokyo_station' },
+            { id:'asakusa_sensoji', name:'浅草寺', lat:35.714774, lng:139.796637, radius:80, messageId: 'asakusa_sensoji' },
+            { id:'shinjuku_gyoen', name:'新宿御苑', lat:35.685175, lng:139.710776, radius:100, messageId: 'shinjuku_gyoen' },
+            { id:'ryuiti', name:'竜一の隠れ家', lat:35.9150826, lng:140.1875742, radius:150, messageId: 'ryuiti' },
+            { id:'syotengai', name:'龍ヶ崎商店街', lat:35.90764205837861, lng:140.18062645636314, radius:150, messageId: 'ryugasaki_syotengai'}
+        ];
+
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const messageBox = document.getElementById('messageBox');
+        const messageTitle = document.getElementById('messageTitle');
+        const messageText = document.getElementById('messageText');
+        const eventButtonContainer = document.getElementById('eventButtonContainer');
+        const eventButtonText = document.getElementById('eventButtonText');
+
+        function showMessageBox(titleId, messageId) {
+            const messageData = gameMessages[messageId];
+            if (messageData) {
+                messageTitle.innerText = messageData.title;
+                messageText.innerText = messageData.text;
+                messageBox.classList.remove('hidden');
+            }
+        }
+
+        function hideMessageBox() {
+            messageBox.classList.add('hidden');
+        }
+
+        function handleEventButtonClick() {
+            if (activeEventLocation) {
+                showMessageBox(activeEventLocation.messageId, activeEventLocation.messageId);
+            }
+        }
+
+        function calculateBearing(lat1, lon1, lat2, lon2) {
+            const toRad = deg => deg * Math.PI / 180;
+            const toDeg = rad => rad * 180 / Math.PI;
+            const dLon = toRad(lon2 - lon1);
+            const lat1Rad = toRad(lat1), lat2Rad = toRad(lat2);
+            const y = Math.sin(dLon) * Math.cos(lat2Rad);
+            const x = Math.cos(lat1Rad)*Math.sin(lat2Rad) -
+                      Math.sin(lat1Rad)*Math.cos(lat2Rad)*Math.cos(dLon);
+            let bearing = toDeg(Math.atan2(y, x));
+            return (bearing + 360) % 360;
+        }
+
+        function initMap(latitude, longitude) {
+            const currentLocation = { lat: latitude, lng: longitude };
+            if (map) {
+                map.setCenter(currentLocation);
+                marker.setPosition(currentLocation);
+            } else {
+                map = new google.maps.Map(document.getElementById("map"), {
+                    center: currentLocation, zoom: 18, disableDefaultUI: true,
+                    zoomControl:true, mapTypeControl:false, streetViewControl:false
+                });
+                marker = new google.maps.Marker({
+                    position: currentLocation, map: map, title: "現在地",
+                    icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                            scale:6, fillColor:'#FF0000', fillOpacity:0.8,
+                            strokeWeight:0, rotation:0 }
+                });
+                eventLocations.forEach(loc=>{
+                    new google.maps.Marker({
+                        position:{lat:loc.lat, lng:loc.lng}, map:map, title:loc.name,
+                        icon:{path:google.maps.SymbolPath.CIRCLE, scale:8,
+                              fillColor:'#0000FF', fillOpacity:0.6, strokeWeight:0}
+                    });
+                    new google.maps.Circle({
+                        strokeColor:'#0000FF', strokeOpacity:0.8, strokeWeight:2,
+                        fillColor:'#0000FF', fillOpacity:0.15,
+                        map:map, center:{lat:loc.lat, lng:loc.lng}, radius:loc.radius
+                    });
+                });
+            }
+            loadingOverlay.classList.add('hidden');
+        }
+
+        function startGeolocationTracking() {
+            loadingOverlay.classList.remove('hidden');
+            if (navigator.geolocation) {
+                watchId = navigator.geolocation.watchPosition(pos=>{
+                    const lat=pos.coords.latitude, lng=pos.coords.longitude;
+                    const newLoc = {lat:lat, lng:lng};
+                    const userLatLng = new google.maps.LatLng(lat, lng);
+                    initMap(lat,lng);
+                    if (lastPosition && (newLoc.lat!==lastPosition.lat || newLoc.lng!==lastPosition.lng)) {
+                        const bearing = calculateBearing(lastPosition.lat,lastPosition.lng,newLoc.lat,newLoc.lng);
+                        marker.setIcon({...marker.getIcon(), rotation:bearing});
+                    }
+                    lastPosition = newLoc;
+
+                    let found=false;
+                    eventLocations.forEach(loc=>{
+                        const evLatLng = new google.maps.LatLng(loc.lat, loc.lng);
+                        const distance = google.maps.geometry.spherical.computeDistanceBetween(userLatLng, evLatLng);
+                        if (distance <= loc.radius) {
+                            activeEventLocation = loc;
+                            eventButtonText.innerText = `${loc.name}のメッセージを見る`;
+                            eventButtonContainer.classList.remove('hidden');
+                            found=true;
+                        }
+                    });
+                    if (!found) {
+                        eventButtonContainer.classList.add('hidden');
+                        activeEventLocation = null;
+                    }
+                    loadingOverlay.classList.add('hidden');
+                }, err=>{
+                    showMessageBox('geolocation_error');
+                    initMap(DEFAULT_LAT, DEFAULT_LNG);
+                },{enableHighAccuracy:true, timeout:20000, maximumAge:0});
+            } else {
+                showMessageBox('browser_unsupported');
+                initMap(DEFAULT_LAT, DEFAULT_LNG);
+            }
+        }
+
+        function loadGoogleMapsScript() {
+            const script = document.createElement("script");
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=onGoogleMapsLoaded&libraries=geometry`;
+            script.async = true; script.defer = true;
+            document.head.appendChild(script);
+        }
+        function onGoogleMapsLoaded() {
+            initMap(DEFAULT_LAT, DEFAULT_LNG);
+            startGeolocationTracking();
+        }
+
+        window.onload = () => { loadGoogleMapsScript(); };
+    </script>
+</body>
+</html>
